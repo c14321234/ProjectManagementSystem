@@ -1,0 +1,6 @@
+D:\编程c++\ProjectManagementSystem\x64\Release\libmysql.dll
+D:\编程c++\ProjectManagementSystem\x64\Release\zlib1.dll
+D:\编程c++\ProjectManagementSystem\x64\Release\libssl-3-x64.dll
+D:\编程c++\ProjectManagementSystem\x64\Release\libcrypto-3-x64.dll
+D:\编程c++\ProjectManagementSystem\x64\Release\zstd.dll
+D:\编程c++\ProjectManagementSystem\ProjectM.D0CED995\x64\Release\ProjectM.FF5B1CE7.Up2Date
