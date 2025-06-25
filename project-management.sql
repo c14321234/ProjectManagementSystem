@@ -1,14 +1,6 @@
 CREATE DATABASE IF NOT EXISTS projectManagement;
 USE projectManagement;
 
--- 用户表
-CREATE TABLE user (
-    user_id INT(11) NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    username VARCHAR(50) NOT NULL UNIQUE,
-    role ENUM('admin', 'user', 'guest') NOT NULL DEFAULT 'user',
-    password VARCHAR(64) NOT NULL
-);
-
 -- 文档表
 CREATE TABLE document (
     doc_id INT(11) NOT NULL AUTO_INCREMENT PRIMARY KEY,
@@ -28,14 +20,6 @@ CREATE TABLE score (
     create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
--- 任务表（如后续需要任务粒度的管理，可扩展）
-CREATE TABLE task (
-    task_id INT(11) NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    task_name VARCHAR(100),
-    project_id INT(11),
-    weight INT(11) DEFAULT 1
-);
-
 -- GitHub 仓库表
 CREATE TABLE github_repo (
     repo_id INT(11) NOT NULL AUTO_INCREMENT PRIMARY KEY,
@@ -45,10 +29,10 @@ CREATE TABLE github_repo (
     sync_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
--- 操作日志表（选做）
-CREATE TABLE log (
-    log_id INT(11) NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    user_id INT(11),
-    action VARCHAR(255),
-    timestamp DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+-- 项目编号与主题
+CREATE TABLE project_themes (
+    id INT(11) NOT NULL  AUTO_INCREMENT PRIMARY KEY,
+    project_id INT(11) NOT NULL UNIQUE,
+    theme_id INT(11) NOT NULL,
+    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );

@@ -67,6 +67,11 @@ struct ScoreInfo {
     string createTime;// create_time，自动生成
 };
 
+struct ThemeInfo {
+    int projectId; //项目ID
+    int themeId; //项目主题ID
+};
+
 //平均分结构体
 struct AverageScore {
     double sum;
@@ -74,6 +79,18 @@ struct AverageScore {
     int id;
     double aveScore;
     int rank;
+};
+
+// 1. Create the mapping from number to theme name
+vector<QString> themeMap = {
+    u8"题库建设",
+    u8"课堂表情管理",
+    u8"回答问题自动加分",
+    u8"项目管理系统",
+    u8"课堂评价与统计",
+    u8"源码自动编译与运行",
+    u8"源码相似性比较",
+    u8"自动判卷系统"
 };
 
 bool cmp(AverageScore a, AverageScore b) {
@@ -408,6 +425,22 @@ public:
         executeQuery(stmt.str());
         freeResult(); // 释放结果集
         QMessageBox::information(nullptr, u8"提示", u8"评分录入成功");
+    }
+
+    //录入项目主题
+    void setProjectTheme(int projectId, int theme) {
+        stmt.str("");
+        stmt << "INSERT INTO project_themes (project_id, theme_id) VALUES ("
+            << projectId << ", '" << theme << "') "
+            << "ON DUPLICATE KEY UPDATE theme_id = VALUES(theme_id)";
+        executeQuery(stmt.str());
+        if (mysql_affected_rows(conn) > 0) {
+            QMessageBox::information(nullptr, u8"成功", u8"项目 " + QString::number(projectId) + u8" 的主题已成功设置为: " + QString::number(theme));
+        }
+        else if (mysql_errno(conn) == 0) {
+            QMessageBox::information(nullptr, u8"提示", u8"项目 " + QString::number(projectId) + u8" 的主题已经是: " + QString::number(theme));
+        }
+        freeResult();
     }
 
     // 生成评分绩效报告，按项目ID统计用户评分
@@ -986,14 +1019,52 @@ private:
             return;
         }
 
+        stmt.str("");
+        stmt << "SELECT project_id, theme_id "
+            << "FROM project_themes ";
+
+        // 修复：添加结果集处理
+        if (mysql_query(conn, stmt.str().c_str())) {
+            QMessageBox::critical(nullptr, u8"查询失败", QString::fromUtf8(mysql_error(conn)));
+            return;
+        }
+
+        MYSQL_RES* result = mysql_store_result(conn);  // 获取结果集
+        if (!result) {
+            QMessageBox::critical(nullptr, u8"错误", u8"无法获取评分记录");
+            return;
+        }
+
+        int mp[20];
+        int vis[10];
+        memset(mp, -1, sizeof(mp));
+        memset(vis, 0, sizeof(vis));
+
+        MYSQL_ROW row;
+        while ((row = mysql_fetch_row(result))) {
+            mp[atoi(row[0])] = atoi(row[1]);
+        }
+
+        // 释放结果集
+        mysql_free_result(result);
+
         // 定义格式化字符串常量，提高代码可维护性
-        const QString itemFormat = "排名: %1 | 项目: %2 | 平均分: %3 | 评分人数: %4";
+        const QString itemFormat = "排名: %1  |  按主题去重后排名: %2  |  项目: %3 |  项目主题: %4  |  平均分: %5  |  评分人数: %6";
+
+        int rk = 1;
 
         foreach(auto & score, scores) {
-            // 格式化显示：排名-项目-平均分-评分人数
+            if (mp[score.id] == -1) continue; //按主题去重
+            bool flg = true;
+            if (vis[mp[score.id]] == 1) flg = false;
+            vis[mp[score.id]] = 1;
+
+            // 格式化显示：排名-按主题去重后排名-项目-项目主题-平均分-评分人数
             QString itemText = QString(itemFormat)
                 .arg(score.rank)
+                .arg((flg ? (rk++) : -1))
                 .arg(score.id)
+                .arg(themeMap[mp[score.id] - 1])
                 .arg(score.aveScore)
                 .arg(score.n);
             QListWidgetItem* item = new QListWidgetItem(itemText);
@@ -1051,8 +1122,6 @@ private:
     FileDropWidget* fileDropWidget;
     int projectId = 0;
 };
-
-// 在 MainSystemWidget 类的定义之前，添加这个新的对话框类
 
 class DocumentMenuDialog : public QDialog {
     Q_OBJECT
@@ -1152,8 +1221,6 @@ private:
     }
 };
 
-// 在 DocumentMenuDialog 类的定义之后，添加这个新的对话框类
-
 class ScoreMenuDialog : public QDialog {
     Q_OBJECT
 public:
@@ -1164,12 +1231,43 @@ public:
     }
 
 private slots:
+
+    void onEnterTheme() {
+        bool ok_project;
+        int projectId = QInputDialog::getInt(this, u8"录入项目主题", u8"第一步: 请输入您小组的项目编号:", 1, 1, INT_MAX, 1, &ok_project);
+        if (!ok_project) return;
+
+        // 2. Build the text prompt for the dialog
+        QString promptText = u8"第二步: 请为项目 " + QString::number(projectId) + u8" 输入所属的主题编号:\n\n";
+        for (size_t i = 0; i < themeMap.size(); ++i) {
+            promptText += QString::number(i + 1) + ". " + themeMap[i] + "\n";
+        }
+
+        // 3. Get the theme ID number from the user
+        bool ok_theme;
+        int themeId = QInputDialog::getInt(this,
+            u8"选择项目主题",      // Dialog Title
+            promptText,            // Dialog Label/Prompt
+            1,                     // Default value
+            1,                     // Minimum value allowed
+            themeMap.size(),       // Maximum value allowed (it's 8)
+            1,                     // Step
+            &ok_theme);
+
+        if (!ok_theme) return;
+
+        ScoreAnalyzer sa;
+        sa.setProjectTheme(projectId, themeId); // Pass the string name
+
+        accept(); // Close the dialog after the operation
+    }
+
     void onEnterScoreClicked() {
         ScoreAnalyzer sa;
         ScoreInfo score;
         bool ok;
 
-        score.userId = QInputDialog::getInt(this, u8"输入用户ID", u8"请输入您的用户ID：", 1, 1, INT_MAX, 1, &ok);
+        score.userId = QInputDialog::getInt(this, u8"输入小组ID", u8"请输入您的小组ID：", 1, 1, INT_MAX, 1, &ok);
         if (!ok) return;
         score.projectId = QInputDialog::getInt(this, u8"输入项目ID", u8"请输入您要评分的项目ID：", 1, 1, INT_MAX, 1, &ok);
         if (!ok) return;
@@ -1203,6 +1301,7 @@ private:
         layout->setSpacing(15);
         layout->setContentsMargins(20, 20, 20, 20);
 
+        QPushButton* enterTheme = new QPushButton(u8"录入项目主题（不录入项目主题的小组不给排名）");
         QPushButton* enterScoreButton = new QPushButton(u8"录入评分");
         QPushButton* viewHistoryButton = new QPushButton(u8"查看项目评分历史");
         QPushButton* rankingButton = new QPushButton(u8"查看所有项目排名");
@@ -1219,15 +1318,18 @@ private:
             QPushButton:hover { background-color: #27ae60; }
             QPushButton:pressed { background-color: #229954; }
         )";
+        enterTheme->setStyleSheet(subMenuStyle);
         enterScoreButton->setStyleSheet(subMenuStyle);
         viewHistoryButton->setStyleSheet(subMenuStyle);
         rankingButton->setStyleSheet(subMenuStyle);
 
         layout->addWidget(new QLabel(u8"请选择一项操作："));
+        layout->addWidget(enterTheme);
         layout->addWidget(enterScoreButton);
         layout->addWidget(viewHistoryButton);
         layout->addWidget(rankingButton);
 
+        connect(enterTheme, &QPushButton::clicked, this, &ScoreMenuDialog::onEnterTheme);
         connect(enterScoreButton, &QPushButton::clicked, this, &ScoreMenuDialog::onEnterScoreClicked);
         connect(viewHistoryButton, &QPushButton::clicked, this, &ScoreMenuDialog::onViewHistoryClicked);
         connect(rankingButton, &QPushButton::clicked, this, &ScoreMenuDialog::onRankingClicked);
