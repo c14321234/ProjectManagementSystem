@@ -1058,11 +1058,11 @@ private:
             bool flg = true;
             if (vis[mp[score.id]] == 1) flg = false;
             vis[mp[score.id]] = 1;
-
+            
             // 格式化显示：排名-按主题去重后排名-项目-项目主题-平均分-评分人数
             QString itemText = QString(itemFormat)
                 .arg(score.rank)
-                .arg((flg ? (rk++) : -1))
+                .arg( (flg?(rk++):-1) )
                 .arg(score.id)
                 .arg(themeMap[mp[score.id] - 1])
                 .arg(score.aveScore)
